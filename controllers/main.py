@@ -56,22 +56,24 @@ class ProductVisibilityCon(WebsiteSale):
     ], type='http', auth="public", website=True, sitemap=sitemap_shop)
     def shop(self, page=0, category=None, search='', ppg=False, **post):
         ''''Override shop function.'''
-        available_categ = request.env['product.public.category']
-        available_products = request.env['product.template']
-        user = request.env['res.users'].sudo().search([('id', '=', request.env.user.id)])
-        if not user:
+        available_categ = request.env['product.public.category'].browse()
+        available_products = request.env['product.template'].browse()
+        is_public_user = request.website.is_public_user()
+        if is_public_user:
             mode = request.env['ir.config_parameter'].sudo().get_param('filter_mode')
-            products = literal_eval(request.env['ir.config_parameter'].sudo().get_param('website_product_visibility.available_product_ids', 'False'))
-            cat = literal_eval(request.env['ir.config_parameter'].sudo().get_param('website_product_visibility.available_cat_ids', 'False'))
+            products = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
+                'website_product_visibility.available_product_ids', '[]'))
+            cat = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
+                'website_product_visibility.available_cat_ids', '[]'))
             if mode == 'product_only':
                 available_products = request.env['product.template'].search([('id', 'in', products)])
             elif mode == 'categ_only':
                 available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
         else:
-            partner = request.env['res.partner'].sudo().search([('id', '=', user.partner_id.id)])
+            partner = request.env.user.partner_id
             mode = partner.filter_mode
             if mode == 'product_only':
-                available_products = self.availavle_products()
+                available_products = self.available_products_for_partner()
             elif mode == 'categ_only':
                 available_categ = partner.website_available_cat_ids
 
@@ -176,9 +178,8 @@ class ProductVisibilityCon(WebsiteSale):
 
         return request.render("website_sale.products", values)
 
-    def availavle_products(self):
+    def available_products_for_partner(self):
         ''''Returns the available product (product.template) ids'''
-        user = request.env['res.users'].sudo().search([('id', '=', request.env.user.id)])
-        partner = request.env['res.partner'].sudo().search([('id', '=', user.partner_id.id)])
+        partner = request.env.user.partner_id
         return partner.website_available_product_ids
 
