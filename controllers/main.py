@@ -48,48 +48,6 @@ class ProductVisibilityCon(WebsiteSale):
             if not qs or qs.lower() in loc:
                 yield {'loc': loc}
 
-    def reset_domain(self, search, categories, available_products, attrib_values, search_in_description=True):
-        '''
-        Function returns a domain consist of filter conditions
-        :param search: search variable
-        :param categories: list of category available
-        :param available_products: list of available product ids from product.template
-        :param attrib_values:product attiribute values
-        :param search_in_description: boolean filed showing there is search variable exist or not'''
-
-        domains = [request.website.sale_product_domain()]
-        if search:
-            for srch in search.split(" "):
-                subdomains = [
-                    [('name', 'ilike', srch)],
-                    [('product_variant_ids.default_code', 'ilike', srch)]
-                ]
-                if search_in_description:
-                    subdomains.append([('description', 'ilike', srch)])
-                    subdomains.append([('description_sale', 'ilike', srch)])
-                domains.append(expression.OR(subdomains))
-        if available_products:
-            domains.append([('id', 'in', available_products.ids)])
-        if categories:
-            domains.append([('public_categ_ids', 'child_of', categories.ids)])
-        if attrib_values:
-            attrib = None
-            ids = []
-            for value in attrib_values:
-                if not attrib:
-                    attrib = value[0]
-                    ids.append(value[1])
-                elif value[0] == attrib:
-                    ids.append(value[1])
-                else:
-                    domains.append([('attribute_line_ids.value_ids', 'in', ids)])
-                    attrib = value[0]
-                    ids = [value[1]]
-            if attrib:
-                domains.append([('attribute_line_ids.value_ids', 'in', ids)])
-
-        return expression.AND(domains)
-
     @http.route([
         '''/shop''',
         '''/shop/page/<int:page>''',
@@ -98,31 +56,31 @@ class ProductVisibilityCon(WebsiteSale):
     ], type='http', auth="public", website=True, sitemap=sitemap_shop)
     def shop(self, page=0, category=None, search='', ppg=False, **post):
         ''''Override shop function.'''
-        available_categ =  available_products = ''
+        available_categ = request.env['product.public.category']
+        available_products = request.env['product.template']
         user = request.env['res.users'].sudo().search([('id', '=', request.env.user.id)])
         if not user:
             mode = request.env['ir.config_parameter'].sudo().get_param('filter_mode')
             products = literal_eval(request.env['ir.config_parameter'].sudo().get_param('website_product_visibility.available_product_ids', 'False'))
+            cat = literal_eval(request.env['ir.config_parameter'].sudo().get_param('website_product_visibility.available_cat_ids', 'False'))
             if mode == 'product_only':
                 available_products = request.env['product.template'].search([('id', 'in', products)])
-            cat = literal_eval(request.env['ir.config_parameter'].sudo().get_param('website_product_visibility.available_cat_ids', 'False'))
-            available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
+            elif mode == 'categ_only':
+                available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
         else:
             partner = request.env['res.partner'].sudo().search([('id', '=', user.partner_id.id)])
             mode = partner.filter_mode
             if mode == 'product_only':
                 available_products = self.availavle_products()
-            available_categ = partner.website_available_cat_ids
+            elif mode == 'categ_only':
+                available_categ = partner.website_available_cat_ids
 
-        Category_avail = []
         Category = request.env['product.public.category']
 
-        for ids in available_categ:
-            if not ids.parent_id.id in available_categ.ids:
-                Category_avail.append(ids.id)
-        categ = request.env['product.public.category'].search([('id', 'in', Category_avail)])
-        if mode == 'product_only':
-            categ = Category.search([('parent_id', '=', False), ('product_tmpl_ids', 'in', available_products.ids)])
+        categ_domain = [('parent_id', '=', False)] + request.website.website_domain()
+        if available_categ:
+            categ_domain = expression.AND([categ_domain, ['!', ('id', 'child_of', available_categ.ids)]])
+        categ = request.env['product.public.category'].search(categ_domain)
 
         # supering shop***
 
@@ -151,10 +109,11 @@ class ProductVisibilityCon(WebsiteSale):
         attributes_ids = {v[0] for v in attrib_values}
         attrib_set = {v[1] for v in attrib_values}
         domain = self._get_search_domain(search, category, attrib_values)
-        Product = request.env['product.template'].with_context(bin_size=True)
+        if available_categ:
+            domain = expression.AND([domain, ['!', ('public_categ_ids', 'child_of', available_categ.ids)]])
         if available_products:
-            domain_pro = self.reset_domain(search, category, available_products, attrib_values)
-            Product = Product.search(domain_pro)
+            domain = expression.AND([domain, [('id', 'not in', available_products.ids)]])
+        Product = request.env['product.template'].with_context(bin_size=True)
         keep = QueryURL('/shop', category=category and int(category), search=search, attrib=attrib_list,
                         order=post.get('order'))
         pricelist_context, pricelist = self._get_pricelist_context()
@@ -164,8 +123,6 @@ class ProductVisibilityCon(WebsiteSale):
             post["search"] = search
         if attrib_list:
             post['attrib'] = attrib_list
-        if not category:
-            domain = self.reset_domain(search, available_categ, available_products, attrib_values)
         search_product = Product.search(domain)
         website_domain = request.website.website_domain()
         categs_domain = [('parent_id', '=', False), ('product_tmpl_ids', 'in', search_product.ids)] + website_domain
@@ -179,21 +136,8 @@ class ProductVisibilityCon(WebsiteSale):
             url = "/shop/category/%s" % slug(category)
         product_count = len(search_product)
         pager = request.website.pager(url=url, total=product_count, page=page, step=ppg, scope=7, url_args=post)
-        products = Product.search(domain, limit=ppg, offset=pager['offset'], order=self._get_search_order(post))
-        if not category:
-            if available_products:
-                products = Product.search(domain_pro, limit=ppg, offset=pager['offset'],
-                                          order=self._get_search_order(post))
-            else:
-                products = Product.search(domain, limit=ppg, offset=pager['offset'],
-                                          order=self._get_search_order(post))
-        else:
-            if available_products:
-                products = Product.search(domain_pro, limit=ppg, offset=pager['offset'],
-                                          order=self._get_search_order(post))
-            else:
-                products = Product.search(domain, limit=ppg, offset=pager['offset'],
-                                          order=self._get_search_order(post))
+        products = Product.search(domain, limit=ppg, offset=pager['offset'],
+                                  order=self._get_search_order(post))
         ProductAttribute = request.env['product.attribute']
         if products:
             # get all products without limit

@@ -1,10 +1,10 @@
 ============================
 Website Product Visibility
 ============================
-This module helps you to make visible only the filtered products and
-product categories for a logged in and logged out users/visitors.Also,
-it enables the user to search products and product categories only from
-those available products and categories. .
+This module helps you to hide the filtered products and product
+categories for logged in and logged out users/visitors. Also, it enables
+the user to search products and product categories without showing the
+hidden products and categories.
 Tech
 ====
 * [Python] - Models

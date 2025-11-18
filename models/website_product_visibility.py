@@ -32,13 +32,11 @@ class ProductVisibility(models.Model):
                                     ('categ_only', 'Category Wise')], string='Filter Mode',  default='null')
     website_available_product_ids = fields.Many2many('product.template', string='Available Product',
                                                      domain="[('is_published', '=', True)]",
-                                                     help='The website will only display products which are within one '
-                                                          'of the selected category trees. If no category is specified,'
-                                                          ' all available products will be shown')
+                                                     help='The website will hide the selected products from view. If no '
+                                                          'product is specified, all available products will be shown')
     website_available_cat_ids = fields.Many2many('product.public.category', string='Available Product Categories',
-                                                 help='The website will only display products which are selected.'
-                                                      ' If no product is specified,'
-                                                      ' all available products will be shown')
+                                                 help='The website will hide the selected categories. If no category is '
+                                                      'specified, all available categories will be shown')
 
     @api.onchange("filter_mode")
     def onchange_filter_mod(self):
@@ -57,13 +55,11 @@ class WebsiteGuestVisibility(models.TransientModel):
     available_product_ids = fields.Many2many('product.template',
                                              string='Available Product',
                                              domain="[('is_published', '=', True)]",
-                                             help='The website will only display products which are within one '
-                                                  'of the selected category trees. If no category is specified,'
-                                                  ' all available products will be shown')
+                                             help='The website will hide the selected products from visitors. If no '
+                                                  'product is specified, all available products will be shown')
     available_cat_ids = fields.Many2many('product.public.category', string='Available Product Categories',
-                                         help='The website will only display products which are selected.'
-                                              ' If no product is specified,'
-                                              ' all available products will be shown')
+                                         help='The website will hide the selected product categories. If no category is '
+                                              'specified, all available categories will be shown')
 
     @api.model
     def set_values(self):
