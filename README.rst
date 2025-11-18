@@ -12,12 +12,13 @@ Tech
 
 Installation
 ============
-- www.odoo.com/documentation/13.0/setup/install.html
+- www.odoo.com/documentation/18.0/setup/install.html
 - Install our custom addon
 
 Developer: Shijin V @Cybrosys
            V14: Muhammed Nafih @Cybrosys
            V15: Neeraj @Cybrosys
+           V18: Adaptation for Odoo 18
 
 Bug Tracker
 ===========

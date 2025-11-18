@@ -24,7 +24,7 @@
 {
     'name': 'Website Product Visibility',
     'summary': 'Website Product visibility for Users',
-    'version': '15.0.1.0.2',
+    'version': '18.0.1.0.0',
     'description': """Website Product visibility for Users""",
     'author': 'Cybrosys Techno Solution',
     'maintainer': 'Cybrosys Techno Solutions',

@@ -32,26 +32,27 @@ class ProductTemplate(models.Model):
     def _search_fetch(self, search_detail, search, limit, order):
         results, count = super(ProductTemplate, self)._search_fetch(
             search_detail, search, limit, order)
+        user = self.env.user
         filter_mode = self.env['ir.config_parameter'].sudo().get_param(
             'filter_mode')
-        if not self.env.user.active:
+        if user._is_public():
             if filter_mode == 'categ_only':
                 category = literal_eval(
                     self.env['ir.config_parameter'].sudo().get_param(
                         'website_product_visibility.available_cat_ids', '[]'))
-                results = results.filtered(lambda r: not any(
-                    item in r.public_categ_ids.ids for item in category))
+                results = results.filtered(
+                    lambda r: not any(item in r.public_categ_ids.ids for item in category))
             elif filter_mode == 'product_only':
                 products = literal_eval(
                     self.env['ir.config_parameter'].sudo().get_param(
                         'website_product_visibility.available_product_ids', '[]'))
                 results = results.filtered(lambda r: r.id not in products)
         else:
-            partner = self.env.user.partner_id
+            partner = user.partner_id
             if partner.filter_mode == 'categ_only':
                 category = partner.website_available_cat_ids.ids
-                results = results.filtered(lambda r: not any(
-                    item in r.public_categ_ids.ids for item in category))
+                results = results.filtered(
+                    lambda r: not any(item in r.public_categ_ids.ids for item in category))
             elif partner.filter_mode == 'product_only':
                 products = partner.website_available_product_ids.ids
                 results = results.filtered(lambda r: r.id not in products)
