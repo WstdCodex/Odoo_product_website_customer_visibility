@@ -39,21 +39,21 @@ class ProductPublicCategory(models.Model):
         filter_mode = self.env['ir.config_parameter'].sudo().get_param(
             'filter_mode')
         if user._is_public():
-            if filter_mode == 'categ_only':
-                category = literal_eval(self.env['ir.config_parameter'].sudo().get_param(
-                    'website_product_visibility.available_cat_ids', '[]'))
+            category = literal_eval(self.env['ir.config_parameter'].sudo().get_param(
+                'website_product_visibility.available_cat_ids', '[]'))
+            products = literal_eval(self.env['ir.config_parameter'].sudo().get_param(
+                'website_product_visibility.available_product_ids', '[]'))
+            if filter_mode in ['categ_only', 'product_and_categ']:
                 results = results.filtered(lambda r: r.id not in category)
-            elif filter_mode == 'product_only':
-                products = literal_eval(self.env['ir.config_parameter'].sudo().get_param(
-                    'website_product_visibility.available_product_ids', '[]'))
+            if filter_mode in ['product_only', 'product_and_categ']:
                 results = results.filtered(lambda r: not any(item in r.product_tmpl_ids.ids
                                                              for item in products))
         else:
             partner = user.partner_id
-            if partner.filter_mode == 'categ_only':
+            if partner.filter_mode in ['categ_only', 'product_and_categ']:
                 category = partner.website_available_cat_ids.ids
                 results = results.filtered(lambda r: r.id not in category)
-            elif partner.filter_mode == 'product_only':
+            if partner.filter_mode in ['product_only', 'product_and_categ']:
                 products = partner.website_available_product_ids.ids
                 results = results.filtered(lambda r: not any(item in r.product_tmpl_ids.ids
                                                              for item in products))
