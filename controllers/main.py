@@ -69,12 +69,18 @@ class ProductVisibilityCon(WebsiteSale):
                 available_products = request.env['product.template'].search([('id', 'in', products)])
             elif mode == 'categ_only':
                 available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
+            elif mode == 'product_and_categ':
+                available_products = request.env['product.template'].search([('id', 'in', products)])
+                available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
         else:
             partner = request.env.user.partner_id
             mode = partner.filter_mode
             if mode == 'product_only':
                 available_products = self.available_products_for_partner()
             elif mode == 'categ_only':
+                available_categ = partner.website_available_cat_ids
+            elif mode == 'product_and_categ':
+                available_products = self.available_products_for_partner()
                 available_categ = partner.website_available_cat_ids
 
         Category = request.env['product.public.category']

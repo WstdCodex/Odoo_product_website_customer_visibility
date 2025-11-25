@@ -28,8 +28,12 @@ from ast import literal_eval
 class ProductVisibility(models.Model):
     _inherit = 'res.partner'
 
-    filter_mode = fields.Selection([('null', 'No Filter'), ('product_only', 'Product Wise'),
-                                    ('categ_only', 'Category Wise')], string='Filter Mode',  default='null')
+    filter_mode = fields.Selection([
+        ('null', 'No Filter'),
+        ('product_only', 'Product Wise'),
+        ('categ_only', 'Category Wise'),
+        ('product_and_categ', 'Product & Category Wise')
+    ], string='Filter Mode', default='null')
     website_available_product_ids = fields.Many2many('product.template', string='Available Product',
                                                      domain="[('is_published', '=', True)]",
                                                      help='The website will hide the selected products from view. If no '
@@ -48,9 +52,11 @@ class WebsiteGuestVisibility(models.TransientModel):
     _inherit = 'res.config.settings'
 
     product_visibility_guest_user = fields.Boolean(string="Product visibility Guest User")
-    filter_mode = fields.Selection([('product_only', 'Product Wise'),
-                                    ('categ_only', 'Category Wise')],
-                                   string='Filter Mode', default='product_only')
+    filter_mode = fields.Selection([
+        ('product_only', 'Product Wise'),
+        ('categ_only', 'Category Wise'),
+        ('product_and_categ', 'Product & Category Wise')
+    ], string='Filter Mode', default='product_only')
 
     available_product_ids = fields.Many2many('product.template',
                                              string='Available Product',

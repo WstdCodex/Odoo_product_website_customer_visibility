@@ -11,12 +11,14 @@
                         <group name ='container_row_2'>
                             <field name="filter_mode" widget="radio"/>
                         </group>
-                         <group name="container_row_2">
-                             <field name="website_available_cat_ids" widget="many2many_tags" attrs="{'invisible': [('filter_mode', 'in', ['product_only','null'])]}" />
-                         </group>
-                         <group name="container_row_3">
-                             <field name="website_available_product_ids" widget="many2many_tags" attrs="{'invisible': [('filter_mode', 'in', ['categ_only','null'])]}" />
-                         </group>
+                        <group name="container_row_2">
+                            <field name="website_available_cat_ids" widget="many2many_tags"
+                                   attrs="{'invisible': [('filter_mode', 'in', ['product_only','null'])]}"/>
+                        </group>
+                        <group name="container_row_3">
+                            <field name="website_available_product_ids" widget="many2many_tags"
+                                   attrs="{'invisible': [('filter_mode', 'in', ['categ_only','null'])]}"/>
+                        </group>
                     </page>
                 </xpath>
             </field>
@@ -46,14 +48,14 @@
                                         <label  class="o_light_label col-lg-3" for="filter_mode"/>
                                         <field name="filter_mode" widget="radio"/>
                                     </div>
-                                   <div class="mt16" attrs="{'invisible': [('filter_mode', 'in', ['categ_only'])]}">
-                                       <label  class="o_light_label col-lg-3" for="available_product_ids"/>
-                                       <field name="available_product_ids" widget="many2many_tags"  />
-                                   </div>
+                                    <div class="mt16" attrs="{'invisible': [('filter_mode', 'in', ['categ_only'])]}">
+                                        <label  class="o_light_label col-lg-3" for="available_product_ids"/>
+                                        <field name="available_product_ids" widget="many2many_tags"/>
+                                    </div>
                                     <div class="mt16" attrs="{'invisible': [('filter_mode', 'in', ['product_only'])]}">
                                         <label  class="o_light_label col-lg-3" for="available_cat_ids"/>
-                                       <field name="available_cat_ids"  widget="many2many_tags" />
-                                   </div>
+                                        <field name="available_cat_ids" widget="many2many_tags"/>
+                                    </div>
                                 </div>
                            </div>
                        </div>
