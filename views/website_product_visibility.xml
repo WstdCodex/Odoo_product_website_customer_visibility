@@ -13,11 +13,15 @@
                         </group>
                         <group name="container_row_2">
                             <field name="website_available_cat_ids" widget="many2many_tags"
-                                   attrs="{'invisible': [('filter_mode', 'in', ['product_only','null'])]}"/>
+                                   attrs="{'invisible': [('filter_mode', 'in', ['product_only','null','brand_only','product_and_brand'])]}"/>
+                        </group>
+                        <group name="container_row_4">
+                            <field name="website_available_brand_ids" widget="many2many_tags"
+                                   attrs="{'invisible': [('filter_mode', 'in', ['product_only','categ_only','product_and_categ','null'])]}"/>
                         </group>
                         <group name="container_row_3">
                             <field name="website_available_product_ids" widget="many2many_tags"
-                                   attrs="{'invisible': [('filter_mode', 'in', ['categ_only','null'])]}"/>
+                                   attrs="{'invisible': [('filter_mode', 'in', ['categ_only','null','brand_only','categ_and_brand'])]}"/>
                         </group>
                     </page>
                 </xpath>
@@ -55,6 +59,10 @@
                                     <div class="mt16" attrs="{'invisible': [('filter_mode', 'in', ['product_only'])]}">
                                         <label  class="o_light_label col-lg-3" for="available_cat_ids"/>
                                         <field name="available_cat_ids" widget="many2many_tags"/>
+                                    </div>
+                                    <div class="mt16" attrs="{'invisible': [('filter_mode', 'in', ['product_only','categ_only','product_and_categ'])]}">
+                                        <label  class="o_light_label col-lg-3" for="available_brand_ids"/>
+                                        <field name="available_brand_ids" widget="many2many_tags"/>
                                     </div>
                                 </div>
                            </div>

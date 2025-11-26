@@ -37,6 +37,15 @@ from odoo.osv import expression
 
 class ProductVisibilityCon(WebsiteSale):
 
+    def _mode_has_products(self, mode):
+        return mode in ['product_only', 'product_and_categ', 'product_and_brand', 'product_categ_and_brand']
+
+    def _mode_has_categories(self, mode):
+        return mode in ['categ_only', 'product_and_categ', 'categ_and_brand', 'product_categ_and_brand']
+
+    def _mode_has_brands(self, mode):
+        return mode in ['brand_only', 'product_and_brand', 'categ_and_brand', 'product_categ_and_brand']
+
     def sitemap_shop(env, rule, qs):
         if not qs or qs.lower() in '/shop':
             yield {'loc': '/shop'}
@@ -58,6 +67,7 @@ class ProductVisibilityCon(WebsiteSale):
         ''''Override shop function.'''
         available_categ = request.env['product.public.category'].browse()
         available_products = request.env['product.template'].browse()
+        available_brands = request.env['product.brand'].browse()
         is_public_user = request.website.is_public_user()
         if is_public_user:
             mode = request.env['ir.config_parameter'].sudo().get_param('filter_mode')
@@ -65,23 +75,23 @@ class ProductVisibilityCon(WebsiteSale):
                 'website_product_visibility.available_product_ids', '[]'))
             cat = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
                 'website_product_visibility.available_cat_ids', '[]'))
-            if mode == 'product_only':
+            brand = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
+                'website_product_visibility.available_brand_ids', '[]'))
+            if self._mode_has_products(mode):
                 available_products = request.env['product.template'].search([('id', 'in', products)])
-            elif mode == 'categ_only':
+            if self._mode_has_categories(mode):
                 available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
-            elif mode == 'product_and_categ':
-                available_products = request.env['product.template'].search([('id', 'in', products)])
-                available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
+            if self._mode_has_brands(mode):
+                available_brands = request.env['product.brand'].search([('id', 'in', brand)])
         else:
             partner = request.env.user.partner_id
             mode = partner.filter_mode
-            if mode == 'product_only':
+            if self._mode_has_products(mode):
                 available_products = self.available_products_for_partner()
-            elif mode == 'categ_only':
+            if self._mode_has_categories(mode):
                 available_categ = partner.website_available_cat_ids
-            elif mode == 'product_and_categ':
-                available_products = self.available_products_for_partner()
-                available_categ = partner.website_available_cat_ids
+            if self._mode_has_brands(mode):
+                available_brands = partner.website_available_brand_ids
 
         Category = request.env['product.public.category']
 
@@ -92,7 +102,7 @@ class ProductVisibilityCon(WebsiteSale):
 
         # supering shop***
 
-        if not available_categ and not available_products:
+        if not available_categ and not available_products and not available_brands:
             return super(ProductVisibilityCon, self).shop(page, category, search, ppg, **post)
         add_qty = int(post.get('add_qty', 1))
 
@@ -121,6 +131,8 @@ class ProductVisibilityCon(WebsiteSale):
             domain = expression.AND([domain, ['!', ('public_categ_ids', 'child_of', available_categ.ids)]])
         if available_products:
             domain = expression.AND([domain, [('id', 'not in', available_products.ids)]])
+        if available_brands:
+            domain = expression.AND([domain, [('brand_id', 'not in', available_brands.ids)]])
         Product = request.env['product.template'].with_context(bin_size=True)
         keep = QueryURL('/shop', category=category and int(category), search=search, attrib=attrib_list,
                         order=post.get('order'))

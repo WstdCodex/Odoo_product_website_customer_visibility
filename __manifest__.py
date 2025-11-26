@@ -31,7 +31,7 @@
     'company': 'Cybrosys Techno Solutions',
     'website': 'https://www.cybrosys.com',
     'category': 'Website',
-    'depends': ['contacts', 'website_sale'],
+    'depends': ['contacts', 'website_sale', 'product_brand'],
     'data': [
         'views/website_product_visibility.xml',
     ],

@@ -32,7 +32,11 @@ class ProductVisibility(models.Model):
         ('null', 'No Filter'),
         ('product_only', 'Product Wise'),
         ('categ_only', 'Category Wise'),
-        ('product_and_categ', 'Product & Category Wise')
+        ('brand_only', 'Product Brand Wise'),
+        ('product_and_categ', 'Product & Category Wise'),
+        ('product_and_brand', 'Product Wise & Product Brand'),
+        ('categ_and_brand', 'Category Wise & Product Brand'),
+        ('product_categ_and_brand', 'Product, Category & Product Brand')
     ], string='Filter Mode', default='null')
     website_available_product_ids = fields.Many2many('product.template', string='Available Product',
                                                      domain="[('is_published', '=', True)]",
@@ -41,12 +45,16 @@ class ProductVisibility(models.Model):
     website_available_cat_ids = fields.Many2many('product.public.category', string='Available Product Categories',
                                                  help='The website will hide the selected categories. If no category is '
                                                       'specified, all available categories will be shown')
+    website_available_brand_ids = fields.Many2many('product.brand', string='Available Product Brands',
+                                                   help='The website will hide the selected product brands. If no brand '
+                                                        'is specified, all available brands will be shown')
 
     @api.onchange("filter_mode")
     def onchange_filter_mod(self):
         if self.filter_mode == 'null':
             self.website_available_cat_ids = None
             self.website_available_product_ids = None
+            self.website_available_brand_ids = None
 
 class WebsiteGuestVisibility(models.TransientModel):
     _inherit = 'res.config.settings'
@@ -55,7 +63,11 @@ class WebsiteGuestVisibility(models.TransientModel):
     filter_mode = fields.Selection([
         ('product_only', 'Product Wise'),
         ('categ_only', 'Category Wise'),
-        ('product_and_categ', 'Product & Category Wise')
+        ('brand_only', 'Product Brand Wise'),
+        ('product_and_categ', 'Product & Category Wise'),
+        ('product_and_brand', 'Product Wise & Product Brand'),
+        ('categ_and_brand', 'Category Wise & Product Brand'),
+        ('product_categ_and_brand', 'Product, Category & Product Brand')
     ], string='Filter Mode', default='product_only')
 
     available_product_ids = fields.Many2many('product.template',
@@ -66,6 +78,9 @@ class WebsiteGuestVisibility(models.TransientModel):
     available_cat_ids = fields.Many2many('product.public.category', string='Available Product Categories',
                                          help='The website will hide the selected product categories. If no category is '
                                               'specified, all available categories will be shown')
+    available_brand_ids = fields.Many2many('product.brand', string='Available Product Brands',
+                                           help='The website will hide the selected product brands. If no brand is '
+                                                'specified, all available brands will be shown')
 
     @api.model
     def set_values(self):
@@ -76,16 +91,30 @@ class WebsiteGuestVisibility(models.TransientModel):
         if not self.product_visibility_guest_user:
             self.available_cat_ids = None
             self.available_product_ids = None
-            self.env['ir.config_parameter'].sudo().set_param('filter_mode','product_only')
+            self.available_brand_ids = None
+            self.env['ir.config_parameter'].sudo().set_param('filter_mode', 'product_only')
         if self.filter_mode == 'product_only':
             self.available_cat_ids = None
+            self.available_brand_ids = None
         elif self.filter_mode == 'categ_only':
+            self.available_product_ids = None
+            self.available_brand_ids = None
+        elif self.filter_mode == 'brand_only':
+            self.available_cat_ids = None
+            self.available_product_ids = None
+        elif self.filter_mode == 'product_and_categ':
+            self.available_brand_ids = None
+        elif self.filter_mode == 'product_and_brand':
+            self.available_cat_ids = None
+        elif self.filter_mode == 'categ_and_brand':
             self.available_product_ids = None
 
         self.env['ir.config_parameter'].sudo().set_param('website_product_visibility.available_product_ids',
                                                          self.available_product_ids.ids)
         self.env['ir.config_parameter'].sudo().set_param('website_product_visibility.available_cat_ids',
                                                          self.available_cat_ids.ids)
+        self.env['ir.config_parameter'].sudo().set_param('website_product_visibility.available_brand_ids',
+                                                         self.available_brand_ids.ids)
         return res
 
     @api.model
@@ -95,6 +124,8 @@ class WebsiteGuestVisibility(models.TransientModel):
                                    .get_param('website_product_visibility.available_product_ids', 'False'))
         cat_ids = literal_eval(self.env['ir.config_parameter'].sudo()
                                .get_param('website_product_visibility.available_cat_ids', 'False'))
+        brand_ids = literal_eval(self.env['ir.config_parameter'].sudo()
+                                 .get_param('website_product_visibility.available_brand_ids', 'False'))
         mod = self.env['ir.config_parameter'].sudo().get_param('filter_mode')
         if self.env['ir.config_parameter'].sudo().get_param('filter_mode'):
 
@@ -104,5 +135,6 @@ class WebsiteGuestVisibility(models.TransientModel):
                 filter_mode=mod if mod else 'product_only',
                 available_product_ids=[(6, 0, product_ids)],
                 available_cat_ids=[(6, 0, cat_ids)],
+                available_brand_ids=[(6, 0, brand_ids)],
             )
         return res
