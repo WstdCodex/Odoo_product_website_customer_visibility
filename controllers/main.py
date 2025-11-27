@@ -1,203 +1,77 @@
 # -*- coding: utf-8 -*-
-###################################################################################
-#
-#    Cybrosys Technologies Pvt. Ltd.
-#
-#    Copyright (C) 2021-TODAY Cybrosys Technologies (<https://www.cybrosys.com>).
-#    Author: Neeraj Krishnan V M (<https://www.cybrosys.com>)
-#
-#    This program is free software: you can modify
-#    it under the terms of the GNU Affero General Public License (AGPL) as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#
-###################################################################################
-
-from werkzeug.exceptions import NotFound
-from odoo.addons.http_routing.models.ir_http import slug
-from odoo.addons.website.controllers.main import QueryURL
-from odoo.addons.website_sale.controllers.main import TableCompute
 from odoo import http
-from ast import literal_eval
 from odoo.http import request
-from odoo.addons.website.models.ir_http import sitemap_qs2dom
+from odoo.osv import expression
 from odoo.addons.website_sale.controllers.main import WebsiteSale
 
-from odoo.osv import expression
+class ProductVisibilityController(WebsiteSale):
 
+    def _get_visibility_domain(self):
+        """
+        Determines the exclusion domain based on user type (guest or logged-in)
+        and their visibility settings.
 
-
-class ProductVisibilityCon(WebsiteSale):
-
-    def _mode_has_products(self, mode):
-        return mode in ['product_only', 'product_and_categ', 'product_and_brand', 'product_categ_and_brand']
-
-    def _mode_has_categories(self, mode):
-        return mode in ['categ_only', 'product_and_categ', 'categ_and_brand', 'product_categ_and_brand']
-
-    def _mode_has_brands(self, mode):
-        return mode in ['brand_only', 'product_and_brand', 'categ_and_brand', 'product_categ_and_brand']
-
-    def sitemap_shop(env, rule, qs):
-        if not qs or qs.lower() in '/shop':
-            yield {'loc': '/shop'}
-        category = env['product.public.category']
-        dom = sitemap_qs2dom(qs, '/shop/category', category._rec_name)
-        dom += env['website'].get_current_website().website_domain()
-        for cat in category.search(dom):
-            loc = '/shop/category/%s' % slug(cat)
-            if not qs or qs.lower() in loc:
-                yield {'loc': loc}
-
-    @http.route([
-        '''/shop''',
-        '''/shop/page/<int:page>''',
-        '''/shop/category/<model("product.public.category"):category>''',
-        '''/shop/category/<model("product.public.category"):category>/page/<int:page>'''
-    ], type='http', auth="public", website=True, sitemap=sitemap_shop)
-    def shop(self, page=0, category=None, search='', ppg=False, **post):
-        ''''Override shop function.'''
-        available_categ = request.env['product.public.category'].browse()
-        available_products = request.env['product.template'].browse()
-        available_brands = request.env['product.brand'].browse()
+        Returns:
+            list: An Odoo domain to be added to the main search.
+        """
         is_public_user = request.website.is_public_user()
+        config_sudo = request.env['ir.config_parameter'].sudo()
+
         if is_public_user:
-            mode = request.env['ir.config_parameter'].sudo().get_param('filter_mode')
-            products = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
-                'website_product_visibility.available_product_ids', '[]'))
-            cat = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
-                'website_product_visibility.available_cat_ids', '[]'))
-            brand = literal_eval(request.env['ir.config_parameter'].sudo().get_param(
-                'website_product_visibility.available_brand_ids', '[]'))
-            if self._mode_has_products(mode):
-                available_products = request.env['product.template'].search([('id', 'in', products)])
-            if self._mode_has_categories(mode):
-                available_categ = request.env['product.public.category'].search([('id', 'in', cat)])
-            if self._mode_has_brands(mode):
-                available_brands = request.env['product.brand'].search([('id', 'in', brand)])
+            # Guest User: Read settings from ir.config_parameter
+            if not config_sudo.get_param('product_visibility_guest_user', 'False') == 'True':
+                return []
+
+            mode = config_sudo.get_param('filter_mode')
+            # Use literal_eval to safely evaluate the string representation of the list
+            try:
+                product_ids = eval(config_sudo.get_param('website_product_visibility.available_product_ids', '[]'))
+                categ_ids = eval(config_sudo.get_param('website_product_visibility.available_cat_ids', '[]'))
+                brand_ids = eval(config_sudo.get_param('website_product_visibility.available_brand_ids', '[]'))
+            except (ValueError, SyntaxError):
+                product_ids, categ_ids, brand_ids = [], [], []
+
         else:
+            # Logged-in User: Read settings from the partner record
             partner = request.env.user.partner_id
             mode = partner.filter_mode
-            if self._mode_has_products(mode):
-                available_products = self.available_products_for_partner()
-            if self._mode_has_categories(mode):
-                available_categ = partner.website_available_cat_ids
-            if self._mode_has_brands(mode):
-                available_brands = partner.website_available_brand_ids
+            product_ids = partner.website_available_product_ids.ids
+            categ_ids = partner.website_available_cat_ids.ids
+            brand_ids = partner.website_available_brand_ids.ids
 
-        Category = request.env['product.public.category']
+        if not mode or mode == 'null':
+            return []
 
-        categ_domain = [('parent_id', '=', False)] + request.website.website_domain()
-        if available_categ:
-            categ_domain = expression.AND([categ_domain, ['!', ('id', 'child_of', available_categ.ids)]])
-        categ = request.env['product.public.category'].search(categ_domain)
+        # Build the exclusion domain based on the selected mode
+        exclusion_domain = []
+        if mode in ['product_only', 'product_and_categ', 'product_and_brand', 'product_categ_and_brand'] and product_ids:
+            exclusion_domain.append(('id', 'not in', product_ids))
 
-        # supering shop***
+        if mode in ['categ_only', 'product_and_categ', 'categ_and_brand', 'product_categ_and_brand'] and categ_ids:
+            # We must filter products that are in any of the child categories as well
+            all_child_categs = request.env['product.public.category'].search([('id', 'child_of', categ_ids)])
+            if all_child_categs:
+                exclusion_domain.append(('public_categ_ids', 'not in', all_child_categs.ids))
 
-        if not available_categ and not available_products and not available_brands:
-            return super(ProductVisibilityCon, self).shop(page, category, search, ppg, **post)
-        add_qty = int(post.get('add_qty', 1))
+        if mode in ['brand_only', 'product_and_brand', 'categ_and_brand', 'product_categ_and_brand'] and brand_ids:
+            exclusion_domain.append(('product_brand_id', 'not in', brand_ids))
+            
+        return exclusion_domain
 
-        if category:
-            category = Category.search([('id', '=', int(category))], limit=1)
-            if not category or not category.can_access_from_current_website():
-                raise NotFound()
-        else:
-            category = Category
+    def _get_search_domain(self, search, category, attrib_values, search_in_description=True):
+        """
+        Overrides the base search domain to add product visibility rules.
+        """
+        # 1. Get the original domain from Odoo's logic
+        base_domain = super()._get_search_domain(
+            search, category, attrib_values, search_in_description=search_in_description
+        )
 
-        if ppg:
-            try:
-                ppg = int(ppg)
-                post['ppg'] = ppg
-            except ValueError:
-                ppg = False
-        if not ppg:
-            ppg = request.env['website'].get_current_website().shop_ppg or 20
-        ppr = request.env['website'].get_current_website().shop_ppr or 4
-        attrib_list = request.httprequest.args.getlist('attrib')
-        attrib_values = [[int(x) for x in v.split("-")] for v in attrib_list if v]
-        attributes_ids = {v[0] for v in attrib_values}
-        attrib_set = {v[1] for v in attrib_values}
-        domain = self._get_search_domain(search, category, attrib_values)
-        if available_categ:
-            domain = expression.AND([domain, ['!', ('public_categ_ids', 'child_of', available_categ.ids)]])
-        if available_products:
-            domain = expression.AND([domain, [('id', 'not in', available_products.ids)]])
-        if available_brands:
-            domain = expression.AND([domain, [('brand_id', 'not in', available_brands.ids)]])
-        Product = request.env['product.template'].with_context(bin_size=True)
-        keep = QueryURL('/shop', category=category and int(category), search=search, attrib=attrib_list,
-                        order=post.get('order'))
-        pricelist_context, pricelist = self._get_pricelist_context()
-        request.context = dict(request.context, pricelist=pricelist.id, partner=request.env.user.partner_id)
-        url = "/shop"
-        if search:
-            post["search"] = search
-        if attrib_list:
-            post['attrib'] = attrib_list
-        search_product = Product.search(domain)
-        website_domain = request.website.website_domain()
-        categs_domain = [('parent_id', '=', False), ('product_tmpl_ids', 'in', search_product.ids)] + website_domain
-        if search:
-            search_categories = Category.search(
-                [('product_tmpl_ids', 'in', search_product.ids)] + website_domain).parents_and_self
-            categs_domain.append(('id', 'in', search_categories.ids))
-        else:
-            search_categories = available_categ
-        if category:
-            url = "/shop/category/%s" % slug(category)
-        product_count = len(search_product)
-        pager = request.website.pager(url=url, total=product_count, page=page, step=ppg, scope=7, url_args=post)
-        products = Product.search(domain, limit=ppg, offset=pager['offset'],
-                                  order=self._get_search_order(post))
-        ProductAttribute = request.env['product.attribute']
-        if products:
-            # get all products without limit
-            attributes = ProductAttribute.search([('product_tmpl_ids', 'in', search_product.ids)])
-        else:
-            attributes = ProductAttribute.browse(attributes_ids)
+        # 2. Get the visibility exclusion domain
+        visibility_domain = self._get_visibility_domain()
 
-        layout_mode = request.session.get('website_sale_shop_layout_mode')
-        if not layout_mode:
-            if request.website.viewref('website_sale.products_list_view').active:
-                layout_mode = 'list'
-            else:
-                layout_mode = 'grid'
-        values = {
-            'search': search,
-            'category': category,
-            'attrib_values': attrib_values,
-            'attrib_set': attrib_set,
-            'pager': pager,
-            'pricelist': pricelist,
-            'add_qty': add_qty,
-            'products': products,
-            'search_count': product_count,  # common for all searchbox
-            'bins': TableCompute().process(products, ppg, ppr),
-            'ppg': ppg,
-            'ppr': ppr,
-            'categories': categ,
-            'attributes': attributes,
-            'keep': keep,
-            'search_categories_ids': categ.ids,
-            'layout_mode': layout_mode,
-        }
-
-        if category:
-            values['main_object'] = category
-
-        return request.render("website_sale.products", values)
-
-    def available_products_for_partner(self):
-        ''''Returns the available product (product.template) ids'''
-        partner = request.env.user.partner_id
-        return partner.website_available_product_ids
-
+        # 3. If there's a visibility domain, combine it with the base domain
+        if visibility_domain:
+            return expression.AND([base_domain, visibility_domain])
+        
+        return base_domain
