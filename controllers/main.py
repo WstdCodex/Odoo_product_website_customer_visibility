@@ -46,6 +46,21 @@ class ProductVisibilityCon(WebsiteSale):
     def _mode_has_brands(self, mode):
         return mode in ['brand_only', 'product_and_brand', 'categ_and_brand', 'product_categ_and_brand']
 
+    def _get_brand_field(self, product_model):
+        """Return the field name used for product brands.
+
+        Depending on the installed modules, products can store their brand on
+        ``brand_id`` (used by some community modules) or ``product_brand_id``
+        (used by the official ``product_brand`` module). The function returns
+        whichever is available so the visibility filter can work across both
+        setups.
+        """
+        if 'brand_id' in product_model._fields:
+            return 'brand_id'
+        if 'product_brand_id' in product_model._fields:
+            return 'product_brand_id'
+        return False
+
     def sitemap_shop(env, rule, qs):
         if not qs or qs.lower() in '/shop':
             yield {'loc': '/shop'}
@@ -132,7 +147,9 @@ class ProductVisibilityCon(WebsiteSale):
         if available_products:
             domain = expression.AND([domain, [('id', 'not in', available_products.ids)]])
         if available_brands:
-            domain = expression.AND([domain, [('brand_id', 'not in', available_brands.ids)]])
+            brand_field = self._get_brand_field(Product)
+            if brand_field:
+                domain = expression.AND([domain, [(brand_field, 'not in', available_brands.ids)]])
         Product = request.env['product.template'].with_context(bin_size=True)
         keep = QueryURL('/shop', category=category and int(category), search=search, attrib=attrib_list,
                         order=post.get('order'))
